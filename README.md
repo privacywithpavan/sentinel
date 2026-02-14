@@ -1,1 +1,1 @@
-# Code Sentinel AI
+# Sentinel
