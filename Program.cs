@@ -4,28 +4,29 @@ public class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        var rootCommand = new RootCommand(description: "A simple command-line application to interact with Large Language Models (LLMs).");
-        rootCommand.SetAction(_ => HandleRootCommand());
+        var builder = Host.CreateApplicationBuilder(args);
 
-        var invokeCommand = new InvokeCommand(name: "invoke", description: "Invoke a command to chat with the assistant.");
-        rootCommand.Subcommands.Add(invokeCommand);
+        builder.Logging.ClearProviders();
 
-        var parseResult = rootCommand.Parse(args);
+        builder.Services.Configure<OpenAIOption>(
+            builder.Configuration.GetSection("OpenAI")
+        );
 
-        if (parseResult.Errors.Count == 0)
+        builder.Services.AddHttpClient("OpenAI", client =>
         {
-            await parseResult.InvokeAsync();
-            return 0;
-        }
+            var url = builder.Configuration.GetValue<string>("OpenAI:BaseUrl");
+            client.BaseAddress = new Uri(url ?? throw new ArgumentException("OpenAI BaseUrl is not configured."));
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Environment.GetEnvironmentVariable("OPENAI_API_KEY")}");
+        });
 
-        var errorMessages = parseResult.Errors.Select(e => e.Message).ToArray();
-        ConsoleHelper.ShowErrorMessages(errorMessages);
-        return 1;
-    }
+        builder.Services.AddScoped<IModelService, OpenAIService>();
 
-    static void HandleRootCommand()
-    {
-        AnsiConsole.Write(new FigletText("Sentinel").Centered().
-        Color(Color.SteelBlue));
+        builder.Services.AddSingleton<Application>();
+
+        var host = builder.Build();
+
+        var app = host.Services.GetRequiredService<Application>();
+
+        return await app.RunAsync(args);
     }
 }

@@ -1,9 +1,13 @@
 namespace Sentinel.Commands;
 
-public class InvokeCommand : Command
+public sealed class InvokeCommand : Command
 {
-    public InvokeCommand(string name, string? description = null) : base(name, description)
+    private readonly IModelService _modelService;
+
+    public InvokeCommand(IModelService modelService, string name, string? description = null) : base(name, description)
     {
+        _modelService = modelService;
+
         var promptOption = new Option<string>(name: "--prompt", aliases: ["-p"])
         {
             Description = "The prompt to send to the assistant",
@@ -23,27 +27,25 @@ public class InvokeCommand : Command
         SetAction(async (parseResult, cancellationToken) =>
         {
             var prompt = parseResult.GetValue(promptOption);
-            await HandleInvokeCommand(prompt, cancellationToken);
+            await HandleInvokeCommand(prompt!, cancellationToken);
         });
     }
 
-    static async Task HandleInvokeCommand(string? prompt, CancellationToken cancellationToken)
+    private async Task HandleInvokeCommand(string prompt, CancellationToken cancellationToken)
     {
         AnsiConsole.WriteLine();
 
-        await AnsiConsole.Status()
+        var response = await AnsiConsole.Status()
             .Spinner(Spinner.Known.BouncingBall)
             .StartAsync("Processing your request...", async ctx =>
             {
-                await Task.Delay(3000, cancellationToken);
+                return await _modelService.InvokeAsync(prompt, cancellationToken);
             });
-
-        var response = "Hello, how can I assist you today?";
 
         var panel = new Panel(
             new Rows(
-                new Markup($"{Emoji.Known.Person}: {prompt}"),
-                new Markup($"{Emoji.Known.Robot}: {response}")
+                new Markup($"{Emoji.Known.Person}: {prompt}\n"),
+                new Markup($"{Emoji.Known.Robot}: {response}\n")
             )
         ).Header("[yellow]Chat Summary[/]").RoundedBorder();
 
